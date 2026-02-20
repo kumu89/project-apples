@@ -36,10 +36,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
+  if (room.phase !== "PROMPT") {
+    return NextResponse.json(
+      { error: "Submissions are not open." },
+      { status: 409 },
+    );
+  }
+
   const players = await redis.hlen(playersKey(roomId));
   const submissions = await redis.hlen(submissionsKey(roomId));
 
-  if (players > submissions) {
+  if (players === 0 || submissions < players) {
     return NextResponse.json(
       { error: "Not all players submitted." },
       { status: 409 },

@@ -12,6 +12,7 @@ import {
   roomKey,
   safeJsonParse,
   tokensKey,
+  type RoomData,
 } from "@/lib/room";
 
 const HAND_SIZE = 8;
@@ -48,9 +49,15 @@ export async function POST(request: Request) {
   }
 
   const roomRaw = await redis.get<string>(roomKey(roomId));
-  const room = safeJsonParse<{ roomId: string }>(roomRaw);
+  const room = safeJsonParse<RoomData>(roomRaw);
   if (!room) {
     return NextResponse.json({ error: "Room not found." }, { status: 404 });
+  }
+  if (room.phase !== "WAITING") {
+    return NextResponse.json(
+      { error: "Room is not accepting new players." },
+      { status: 409 },
+    );
   }
 
   const playerToken = createToken();

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-const NAME_PLACEHOLDER = "Player name";
+const NAME_PLACEHOLDER = "プレイヤー名";
 
 export default function Home() {
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function Home() {
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data?.error ?? "Failed to create room.");
+        setError(data?.error ?? "ルーム作成に失敗しました。");
         return;
       }
       localStorage.setItem(
@@ -37,7 +37,7 @@ export default function Home() {
       );
       router.push(`/room/${data.roomId}`);
     } catch {
-      setError("Failed to create room.");
+      setError("ルーム作成に失敗しました。");
     } finally {
       setBusy(false);
     }
@@ -54,7 +54,7 @@ export default function Home() {
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data?.error ?? "Failed to join room.");
+        setError(data?.error ?? "ルーム参加に失敗しました。");
         return;
       }
       localStorage.setItem(
@@ -63,7 +63,7 @@ export default function Home() {
       );
       router.push(`/room/${joinRoomId.toUpperCase()}`);
     } catch {
-      setError("Failed to join room.");
+      setError("ルーム参加に失敗しました。");
     } finally {
       setBusy(false);
     }
@@ -77,15 +77,15 @@ export default function Home() {
             Apples to Apples MVP
           </h1>
           <p className="mt-2 text-sm text-zinc-600">
-            Create a room or join with a room ID.
+            ルームを作成するか、Room IDで参加できます。
           </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
           <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Create Room</h2>
+            <h2 className="text-lg font-semibold">ルームを作成</h2>
             <label className="mt-4 flex flex-col gap-2 text-sm">
-              Your name
+              名前
               <input
                 value={createName}
                 onChange={(event) => setCreateName(event.target.value)}
@@ -99,12 +99,12 @@ export default function Home() {
               disabled={busy}
               className="mt-4 w-full rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
-              Create Room
+              作成する
             </button>
           </section>
 
           <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Join Room</h2>
+            <h2 className="text-lg font-semibold">ルームに参加</h2>
             <label className="mt-4 flex flex-col gap-2 text-sm">
               Room ID
               <input
@@ -115,7 +115,7 @@ export default function Home() {
               />
             </label>
             <label className="mt-4 flex flex-col gap-2 text-sm">
-              Your name
+              名前
               <input
                 value={joinName}
                 onChange={(event) => setJoinName(event.target.value)}
@@ -129,7 +129,7 @@ export default function Home() {
               disabled={busy}
               className="mt-4 w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
-              Join Room
+              参加する
             </button>
           </section>
         </div>

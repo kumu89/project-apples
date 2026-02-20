@@ -35,6 +35,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
+  if (room.phase !== "WAITING") {
+    return NextResponse.json(
+      { error: "Prompt already revealed." },
+      { status: 409 },
+    );
+  }
+
   const nextPrompt =
     greenCards[Math.floor(Math.random() * greenCards.length)];
   if (!nextPrompt) {

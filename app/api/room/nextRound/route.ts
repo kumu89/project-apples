@@ -35,9 +35,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
+  if (room.phase !== "REVEALED") {
+    return NextResponse.json(
+      { error: "Round is not finished yet." },
+      { status: 409 },
+    );
+  }
+
   const updatedRoom: RoomData = {
     ...room,
-    phase: "LOBBY",
+    phase: "WAITING",
     promptCardId: null,
     updatedAt: nowMs(),
     round: room.round + 1,

@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 
-export type RoomPhase = "LOBBY" | "PROMPT" | "REVEALED";
+export type RoomPhase = "WAITING" | "PROMPT" | "REVEALED";
 
 export type RoomData = {
   roomId: string;
@@ -44,8 +44,11 @@ export function createToken(): string {
   return randomUUID().replace(/-/g, "");
 }
 
-export function safeJsonParse<T>(value: string | null): T | null {
-  if (!value) return null;
+export function safeJsonParse<T>(value: unknown): T | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") {
+    return value as T;
+  }
   try {
     return JSON.parse(value) as T;
   } catch {

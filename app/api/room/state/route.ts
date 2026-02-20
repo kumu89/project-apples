@@ -54,16 +54,22 @@ export async function GET(request: Request) {
   }
 
   const response: {
+    roomId: string;
     phase: RoomData["phase"];
-    promptCard: { text: string } | null;
+    prompt: { id: string; text: string } | null;
     players: Array<{ id: string; name: string; submitted: boolean }>;
-    submissionsRevealed: boolean;
+    submittedCount: number;
+    playerCount: number;
+    revealed: boolean;
     revealedCards?: Array<{ text: string }>;
   } = {
+    roomId,
     phase: room.phase,
-    promptCard: promptCard ? { text: promptCard.text } : null,
+    prompt: promptCard ? { id: promptCard.id, text: promptCard.text } : null,
     players,
-    submissionsRevealed,
+    submittedCount: players.filter((player) => player.submitted).length,
+    playerCount: players.length,
+    revealed: submissionsRevealed,
   };
 
   if (submissionsRevealed) {

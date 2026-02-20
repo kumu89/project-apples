@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     roomId,
     hostId: playerId,
     hostToken,
-    phase: "LOBBY",
+    phase: "WAITING",
     promptCardId: null,
     createdAt: timestamp,
     updatedAt: timestamp,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type PlayerSummary = {
   id: string;
@@ -9,10 +10,13 @@ type PlayerSummary = {
 };
 
 type RoomState = {
-  phase: "LOBBY" | "PROMPT" | "REVEALED";
-  promptCard: { text: string } | null;
+  roomId: string;
+  phase: "WAITING" | "PROMPT" | "REVEALED";
+  prompt: { id: string; text: string } | null;
   players: PlayerSummary[];
-  submissionsRevealed: boolean;
+  submittedCount: number;
+  playerCount: number;
+  revealed: boolean;
   revealedCards?: Array<{ text: string }>;
 };
 
@@ -21,8 +25,12 @@ type HandCard = {
   text: string;
 };
 
-export default function RoomPage({ params }: { params: { roomId: string } }) {
-  const roomId = params.roomId.toUpperCase();
+export default function RoomPage() {
+  const router = useRouter();
+  const params = useParams();
+  const rawRoomId =
+    typeof params?.roomId === "string" ? params.roomId : params?.roomId?.[0];
+  const roomId = (rawRoomId ?? "").toUpperCase();
   const [playerToken, setPlayerToken] = useState<string | null>(null);
   const [hostToken, setHostToken] = useState<string | null>(null);
   const [hand, setHand] = useState<HandCard[]>([]);
@@ -30,6 +38,10 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
   const [state, setState] = useState<RoomState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const retryRef = useRef(0);
+  const notFoundRef = useRef(0);
 
   useEffect(() => {
     const storedPlayer = localStorage.getItem(
@@ -40,44 +52,85 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
     setHostToken(storedHost);
   }, [roomId]);
 
+  useEffect(() => {
+    setNotFound(false);
+    retryRef.current = 0;
+    notFoundRef.current = 0;
+    setError(null);
+  }, [roomId]);
+
   const fetchState = async () => {
+    if (!roomId || notFound) return;
     try {
       const response = await fetch(`/api/room/state?roomId=${roomId}`);
       const data = await response.json();
       if (!response.ok) {
-        setError(data?.error ?? "Failed to load room.");
+        if (response.status === 404) {
+          notFoundRef.current += 1;
+          const notFoundThreshold = playerToken || hostToken ? 8 : 3;
+          if (notFoundRef.current < notFoundThreshold) {
+            return;
+          }
+          setNotFound(true);
+          setError(null);
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+          return;
+        }
+        retryRef.current += 1;
+        if (retryRef.current <= 3) {
+          return;
+        }
+        setError(data?.error ?? "ルームの取得に失敗しました。");
         return;
       }
+      notFoundRef.current = 0;
+      retryRef.current = 0;
       setState(data);
       setError(null);
     } catch {
-      setError("Failed to load room.");
+      retryRef.current += 1;
+      if (retryRef.current > 3) {
+        setError("ルームの取得に失敗しました。");
+      }
     }
   };
 
   const fetchHand = async (token: string) => {
+    if (!roomId) return;
     try {
       const response = await fetch(`/api/hand?roomId=${roomId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data?.error ?? "Failed to load hand.");
+        setError(data?.error ?? "手札の取得に失敗しました。");
         return;
       }
       setHand(data.cards ?? []);
       setPlayerId(data.playerId ?? null);
       setError(null);
     } catch {
-      setError("Failed to load hand.");
+      setError("手札の取得に失敗しました。");
     }
   };
 
   useEffect(() => {
+    if (!roomId || notFound) return;
     fetchState();
-    const interval = setInterval(fetchState, 1000);
-    return () => clearInterval(interval);
-  }, [roomId]);
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+    }
+    pollRef.current = setInterval(fetchState, 1000);
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [roomId, notFound]);
 
   useEffect(() => {
     if (playerToken) {
@@ -85,16 +138,42 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
     }
   }, [playerToken]);
 
-  const submittedCount = state?.players.filter((player) => player.submitted)
-    .length;
-  const totalPlayers = state?.players.length ?? 0;
+  const submittedCount = state?.submittedCount ?? 0;
+  const totalPlayers = state?.playerCount ?? 0;
   const hasSubmitted = useMemo(() => {
     if (!state || !playerId) return false;
     return state.players.find((player) => player.id === playerId)?.submitted;
   }, [state, playerId]);
 
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-zinc-50 px-6 py-8 text-zinc-900">
+        <main className="mx-auto flex w-full max-w-xl flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-semibold">ルームが見つかりません。</h1>
+          <p className="text-sm text-zinc-600">
+            ルームが期限切れか、IDが間違っている可能性があります。
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="mt-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Homeに戻る
+          </button>
+        </main>
+      </div>
+    );
+  }
+
   const isHost = Boolean(hostToken);
   const canSubmit = state?.phase === "PROMPT" && !hasSubmitted && !busy;
+  const canRevealPrompt = state?.phase === "WAITING" && !busy;
+  const canRevealSubmissions =
+    state?.phase === "PROMPT" &&
+    submittedCount > 0 &&
+    submittedCount === totalPlayers &&
+    !busy;
+  const canNextRound = state?.phase === "REVEALED" && !busy;
 
   const handleRevealPrompt = async () => {
     if (!hostToken) return;
@@ -111,10 +190,10 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data?.error ?? "Failed to reveal prompt.");
+        setError(data?.error ?? "お題をめくれませんでした。");
       }
     } catch {
-      setError("Failed to reveal prompt.");
+      setError("お題をめくれませんでした。");
     } finally {
       setBusy(false);
     }
@@ -135,10 +214,10 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data?.error ?? "Failed to submit card.");
+        setError(data?.error ?? "カードの提出に失敗しました。");
       }
     } catch {
-      setError("Failed to submit card.");
+      setError("カードの提出に失敗しました。");
     } finally {
       setBusy(false);
     }
@@ -159,10 +238,10 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data?.error ?? "Failed to reveal submissions.");
+        setError(data?.error ?? "提出の公開に失敗しました。");
       }
     } catch {
-      setError("Failed to reveal submissions.");
+      setError("提出の公開に失敗しました。");
     } finally {
       setBusy(false);
     }
@@ -183,10 +262,10 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data?.error ?? "Failed to start next round.");
+        setError(data?.error ?? "次のラウンドに進めませんでした。");
       }
     } catch {
-      setError("Failed to start next round.");
+      setError("次のラウンドに進めませんでした。");
     } finally {
       setBusy(false);
     }
@@ -196,7 +275,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
     try {
       await navigator.clipboard.writeText(roomId);
     } catch {
-      setError("Failed to copy Room ID.");
+      setError("Room IDのコピーに失敗しました。");
     }
   };
 
@@ -215,20 +294,20 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                 onClick={handleCopyRoomId}
                 className="rounded-full border border-zinc-300 px-3 py-1 text-xs"
               >
-                Copy
+                コピー
               </button>
             </div>
             <p className="mt-2 text-sm text-zinc-600">
-              Phase: {state?.phase ?? "Loading"}
+              フェーズ: {state?.phase ?? "読み込み中"}
             </p>
           </div>
           <div className="flex flex-wrap gap-3 text-sm">
             <span className="rounded-full bg-zinc-100 px-3 py-1">
-              Submitted: {submittedCount ?? 0}/{totalPlayers}
+              提出: {submittedCount ?? 0}/{totalPlayers}
             </span>
             {isHost ? (
               <span className="rounded-full bg-zinc-900 px-3 py-1 text-white">
-                Host
+                ホスト
               </span>
             ) : null}
           </div>
@@ -237,17 +316,17 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
         <section className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="flex flex-col gap-6">
             <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">Prompt</h2>
+              <h2 className="text-lg font-semibold">お題</h2>
               <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center text-lg">
-                {state?.promptCard?.text ?? "Waiting for host to reveal..."}
+                {state?.prompt?.text ?? "ホストがお題をめくるまで待機中..."}
               </div>
             </div>
 
             <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">Your Hand</h2>
+              <h2 className="text-lg font-semibold">あなたの手札</h2>
               {!playerToken ? (
                 <p className="mt-3 text-sm text-zinc-600">
-                  Join the room to receive cards.
+                  参加すると手札が配られます。
                 </p>
               ) : (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -266,14 +345,14 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
               )}
               {hasSubmitted ? (
                 <p className="mt-3 text-sm text-green-600">
-                  Submitted! Waiting for others.
+                  提出済みです。ほかのプレイヤーを待っています。
                 </p>
               ) : null}
             </div>
 
             {state?.phase === "REVEALED" ? (
               <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold">Revealed Cards</h2>
+                <h2 className="text-lg font-semibold">公開されたカード</h2>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {(state.revealedCards ?? []).map((card, index) => (
                     <div
@@ -290,7 +369,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
 
           <aside className="flex flex-col gap-6">
             <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">Players</h2>
+              <h2 className="text-lg font-semibold">プレイヤー</h2>
               <ul className="mt-4 space-y-2 text-sm">
                 {state?.players.map((player) => (
                   <li
@@ -299,7 +378,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                   >
                     <span>{player.name}</span>
                     <span className="text-xs text-zinc-500">
-                      {player.submitted ? "Submitted" : "Waiting"}
+                      {player.submitted ? "提出済み" : "待機中"}
                     </span>
                   </li>
                 ))}
@@ -308,31 +387,31 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
 
             {isHost ? (
               <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold">Host Controls</h2>
+                <h2 className="text-lg font-semibold">ホスト操作</h2>
                 <div className="mt-4 flex flex-col gap-3">
                   <button
                     type="button"
                     onClick={handleRevealPrompt}
-                    disabled={busy}
+                    disabled={!canRevealPrompt}
                     className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
-                    Reveal Prompt
+                    お題をめくる
                   </button>
                   <button
                     type="button"
                     onClick={handleRevealSubmissions}
-                    disabled={busy}
+                    disabled={!canRevealSubmissions}
                     className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold disabled:opacity-50"
                   >
-                    Reveal Submissions
+                    提出を公開
                   </button>
                   <button
                     type="button"
                     onClick={handleNextRound}
-                    disabled={busy}
+                    disabled={!canNextRound}
                     className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold disabled:opacity-50"
                   >
-                    Next Round
+                    次のラウンド
                   </button>
                 </div>
               </div>

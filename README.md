@@ -25,3 +25,8 @@ Open [http://localhost:3000](http://localhost:3000).
 - Room state is stored in Upstash Redis with 24h TTL.
 - Clients poll `/api/room/state` every second.
 - Hands are only returned to the owner via `/api/hand` with a player token.
+
+## v1.1 TODO
+
+- Add a voting phase after REVEALED with one vote per player.
+- Show results once all votes are in.

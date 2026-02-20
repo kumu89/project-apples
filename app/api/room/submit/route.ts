@@ -58,6 +58,14 @@ export async function POST(request: Request) {
     );
   }
 
+  const existing = await redis.hget<string>(submissionsKey(roomId), playerId);
+  if (existing) {
+    return NextResponse.json(
+      { error: "Submission already received." },
+      { status: 409 },
+    );
+  }
+
   await redis.hset(submissionsKey(roomId), {
     [playerId]: JSON.stringify({ cardId, submittedAt: nowMs() }),
   });
