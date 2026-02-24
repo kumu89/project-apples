@@ -17,7 +17,7 @@ type RoomState = {
   submittedCount: number;
   playerCount: number;
   revealed: boolean;
-  revealedCards?: Array<{ text: string }>;
+  revealedCards?: Array<{ text: string; playerName: string; playerId: string }>;
 };
 
 type HandCard = {
@@ -38,6 +38,7 @@ export default function RoomPage() {
   const [state, setState] = useState<RoomState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryRef = useRef(0);
@@ -138,6 +139,20 @@ export default function RoomPage() {
     }
   }, [playerToken]);
 
+  useEffect(() => {
+    if (state?.phase === "WAITING" && playerToken) {
+      fetchHand(playerToken);
+      setSelectedCardId(null);
+    }
+  }, [state?.phase, playerToken]);
+
+  useEffect(() => {
+    if (state?.phase === "WAITING" && playerToken) {
+      fetchHand(playerToken);
+      setSelectedCardId(null);
+    }
+  }, [state?.phase, playerToken]);
+
   const submittedCount = state?.submittedCount ?? 0;
   const totalPlayers = state?.playerCount ?? 0;
   const hasSubmitted = useMemo(() => {
@@ -215,7 +230,9 @@ export default function RoomPage() {
       const data = await response.json();
       if (!response.ok) {
         setError(data?.error ?? "カードの提出に失敗しました。");
+        return;
       }
+      setSelectedCardId(cardId);
     } catch {
       setError("カードの提出に失敗しました。");
     } finally {
@@ -271,6 +288,91 @@ export default function RoomPage() {
     }
   };
 
+  const handleReset = async () => {
+    if (!hostToken) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/room/reset", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${hostToken}`,
+        },
+        body: JSON.stringify({ roomId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data?.error ?? "リセットに失敗しました。");
+        return;
+      }
+      setSelectedCardId(null);
+      if (playerToken) {
+        fetchHand(playerToken);
+      }
+      fetchState();
+    } catch {
+      setError("リセットに失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteRoom = async () => {
+    if (!hostToken) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/room/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${hostToken}`,
+        },
+        body: JSON.stringify({ roomId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data?.error ?? "ルーム削除に失敗しました。");
+        return;
+      }
+      localStorage.removeItem(`apples:playerToken:${roomId}`);
+      localStorage.removeItem(`apples:hostToken:${roomId}`);
+      router.push("/");
+    } catch {
+      setError("ルーム削除に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    if (!playerToken) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/room/leave", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${playerToken}`,
+        },
+        body: JSON.stringify({ roomId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data?.error ?? "ルーム退出に失敗しました。");
+        return;
+      }
+      localStorage.removeItem(`apples:playerToken:${roomId}`);
+      router.push("/");
+    } catch {
+      setError("ルーム退出に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleCopyRoomId = async () => {
     try {
       await navigator.clipboard.writeText(roomId);
@@ -301,7 +403,7 @@ export default function RoomPage() {
               フェーズ: {state?.phase ?? "読み込み中"}
             </p>
           </div>
-          <div className="flex flex-wrap gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="rounded-full bg-zinc-100 px-3 py-1">
               提出: {submittedCount ?? 0}/{totalPlayers}
             </span>
@@ -310,6 +412,35 @@ export default function RoomPage() {
                 ホスト
               </span>
             ) : null}
+            {isHost ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  disabled={busy}
+                  className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-semibold disabled:opacity-50"
+                >
+                  新しいゲーム
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteRoom}
+                  disabled={busy}
+                  className="rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-600 disabled:opacity-50"
+                >
+                  ルーム削除
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleLeaveRoom}
+                disabled={busy}
+                className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-semibold disabled:opacity-50"
+              >
+                ルーム退出
+              </button>
+            )}
           </div>
         </header>
 
@@ -336,7 +467,11 @@ export default function RoomPage() {
                       key={card.id}
                       onClick={() => handleSubmit(card.id)}
                       disabled={!canSubmit}
-                      className="rounded-xl border border-zinc-200 bg-white p-4 text-left text-sm shadow-sm hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      className={`rounded-xl border bg-white p-4 text-left text-sm shadow-sm hover:border-zinc-400 disabled:cursor-not-allowed ${
+                        card.id === selectedCardId
+                          ? "border-zinc-900 shadow-lg"
+                          : "border-zinc-200"
+                      } ${!canSubmit && card.id !== selectedCardId ? "opacity-50" : ""}`}
                     >
                       {card.text}
                     </button>
@@ -357,9 +492,16 @@ export default function RoomPage() {
                   {(state.revealedCards ?? []).map((card, index) => (
                     <div
                       key={`${card.text}-${index}`}
-                      className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm"
+                      className={`rounded-xl border p-4 text-sm ${
+                        card.playerId === playerId
+                          ? "border-zinc-900 bg-white shadow-md"
+                          : "border-zinc-200 bg-zinc-50"
+                      }`}
                     >
-                      {card.text}
+                      <p className="text-xs text-zinc-500">{card.playerName}</p>
+                      <p className="mt-1 font-semibold text-zinc-900">
+                        {card.text}
+                      </p>
                     </div>
                   ))}
                 </div>

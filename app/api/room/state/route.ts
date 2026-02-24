@@ -29,7 +29,12 @@ export async function GET(request: Request) {
   const submissionsRaw =
     (await redis.hgetall<string>(submissionsKey(roomId))) ?? {};
 
-  const players: Array<{ id: string; name: string; submitted: boolean }> = [];
+  const players: Array<{
+    id: string;
+    name: string;
+    submitted: boolean;
+    joinedAt: number;
+  }> = [];
   for (const [playerId, value] of Object.entries(playersRaw)) {
     const player = safeJsonParse<PlayerData>(value);
     if (!player) continue;
@@ -37,20 +42,42 @@ export async function GET(request: Request) {
       id: playerId,
       name: player.name,
       submitted: Boolean(submissionsRaw[playerId]),
+      joinedAt: player.joinedAt,
     });
   }
+  players.sort((a, b) => {
+    if (a.id === room.hostId) return -1;
+    if (b.id === room.hostId) return 1;
+    return a.joinedAt - b.joinedAt;
+  });
 
   const promptCard = getGreenCard(room.promptCardId);
   const submissionsRevealed = room.phase === "REVEALED";
 
-  let revealedCards: Array<{ text: string }> = [];
+  let revealedCards: Array<{ text: string; playerName: string; playerId: string }> = [];
   if (submissionsRevealed) {
-    revealedCards = Object.values(submissionsRaw)
-      .map((value) => safeJsonParse<SubmissionData>(value))
-      .filter((submission): submission is SubmissionData => Boolean(submission))
-      .map((submission) => getRedCard(submission.cardId))
-      .filter((card): card is { id: string; text: string } => Boolean(card))
-      .map((card) => ({ text: card.text }));
+    const submissionsByPlayer = new Map(
+      Object.entries(submissionsRaw).map(([playerId, value]) => [
+        playerId,
+        safeJsonParse<SubmissionData>(value),
+      ]),
+    );
+    revealedCards = players
+      .map((player) => {
+        const submission = submissionsByPlayer.get(player.id);
+        if (!submission) return null;
+        const card = getRedCard(submission.cardId);
+        if (!card) return null;
+        return {
+          text: card.text,
+          playerName: player.name,
+          playerId: player.id,
+        };
+      })
+      .filter(
+        (card): card is { text: string; playerName: string; playerId: string } =>
+          Boolean(card),
+      );
   }
 
   const response: {
@@ -61,7 +88,7 @@ export async function GET(request: Request) {
     submittedCount: number;
     playerCount: number;
     revealed: boolean;
-    revealedCards?: Array<{ text: string }>;
+    revealedCards?: Array<{ text: string; playerName: string; playerId: string }>;
   } = {
     roomId,
     phase: room.phase,
