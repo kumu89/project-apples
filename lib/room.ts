@@ -46,9 +46,7 @@ export function createToken(): string {
 
 export function safeJsonParse<T>(value: unknown): T | null {
   if (value === null || value === undefined) return null;
-  if (typeof value !== "string") {
-    return value as T;
-  }
+  if (typeof value !== "string") return null;
   try {
     return JSON.parse(value) as T;
   } catch {

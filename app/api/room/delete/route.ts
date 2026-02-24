@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  const playersRaw = (await redis.hgetall<string>(playersKey(roomId))) ?? {};
+  const playersRaw = (await redis.hgetall(playersKey(roomId))) ?? {};
   const playerIds = Object.entries(playersRaw)
     .map(([playerId, value]) =>
       safeJsonParse<PlayerData>(value) ? playerId : null,

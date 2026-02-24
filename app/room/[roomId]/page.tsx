@@ -131,20 +131,13 @@ export default function RoomPage() {
         pollRef.current = null;
       }
     };
-  }, [roomId, notFound]);
+  }, [roomId, notFound, playerToken, hostToken]);
 
   useEffect(() => {
     if (playerToken) {
       fetchHand(playerToken);
     }
   }, [playerToken]);
-
-  useEffect(() => {
-    if (state?.phase === "WAITING" && playerToken) {
-      fetchHand(playerToken);
-      setSelectedCardId(null);
-    }
-  }, [state?.phase, playerToken]);
 
   useEffect(() => {
     if (state?.phase === "WAITING" && playerToken) {
