@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   const playerId = createToken();
   const timestamp = nowMs();
 
-  const usedRaw = await redis.smembers<string>(dealtRedKey(roomId));
+  const usedRaw = await redis.smembers(dealtRedKey(roomId));
   const used = new Set(usedRaw ?? []);
   const hand = pickHand(used);
 

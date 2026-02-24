@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type PlayerSummary = {
   id: string;
@@ -60,7 +60,7 @@ export default function RoomPage() {
     setError(null);
   }, [roomId]);
 
-  const fetchState = async () => {
+  const fetchState = useCallback(async () => {
     if (!roomId || notFound) return;
     try {
       const response = await fetch(`/api/room/state?roomId=${roomId}`);
@@ -97,9 +97,9 @@ export default function RoomPage() {
         setError("ルームの取得に失敗しました。");
       }
     }
-  };
+  }, [roomId, notFound, playerToken, hostToken]);
 
-  const fetchHand = async (token: string) => {
+  const fetchHand = useCallback(async (token: string) => {
     if (!roomId) return;
     try {
       const response = await fetch(`/api/hand?roomId=${roomId}`, {
@@ -116,7 +116,7 @@ export default function RoomPage() {
     } catch {
       setError("手札の取得に失敗しました。");
     }
-  };
+  }, [roomId]);
 
   useEffect(() => {
     if (!roomId || notFound) return;
@@ -131,20 +131,20 @@ export default function RoomPage() {
         pollRef.current = null;
       }
     };
-  }, [roomId, notFound, playerToken, hostToken]);
+  }, [roomId, notFound, playerToken, hostToken, fetchState]);
 
   useEffect(() => {
     if (playerToken) {
       fetchHand(playerToken);
     }
-  }, [playerToken]);
+  }, [playerToken, fetchHand]);
 
   useEffect(() => {
     if (state?.phase === "WAITING" && playerToken) {
       fetchHand(playerToken);
       setSelectedCardId(null);
     }
-  }, [state?.phase, playerToken]);
+  }, [state?.phase, playerToken, fetchHand]);
 
   const submittedCount = state?.submittedCount ?? 0;
   const totalPlayers = state?.playerCount ?? 0;

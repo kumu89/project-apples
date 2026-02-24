@@ -53,8 +53,8 @@ export async function POST(request: Request) {
   }
 
   const submissionsRaw =
-    (await redis.hgetall<string>(submissionsKey(roomId))) ?? {};
-  const usedRaw = await redis.smembers<string>(dealtRedKey(roomId));
+    (await redis.hgetall(submissionsKey(roomId))) ?? {};
+  const usedRaw = await redis.smembers(dealtRedKey(roomId));
   const used = new Set(usedRaw ?? []);
 
   const handOps: Array<Promise<unknown>> = [];

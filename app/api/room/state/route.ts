@@ -25,9 +25,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Room not found." }, { status: 404 });
   }
 
-  const playersRaw = (await redis.hgetall<string>(playersKey(roomId))) ?? {};
+  const playersRaw = (await redis.hgetall(playersKey(roomId))) ?? {};
   const submissionsRaw =
-    (await redis.hgetall<string>(submissionsKey(roomId))) ?? {};
+    (await redis.hgetall(submissionsKey(roomId))) ?? {};
 
   const players: Array<{
     id: string;
