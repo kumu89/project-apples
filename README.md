@@ -28,5 +28,4 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## v1.1 TODO
 
-- Add a voting phase after REVEALED with one vote per player.
-- Show results once all votes are in.
+- (Implemented) Voting + results phases added.

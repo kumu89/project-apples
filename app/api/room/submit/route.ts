@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Room not found." }, { status: 404 });
   }
 
-  if (room.phase !== "PROMPT") {
+  if (room.phase !== "SELECT") {
     return NextResponse.json(
       { error: "Submissions are closed." },
       { status: 409 },

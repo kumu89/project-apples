@@ -11,6 +11,7 @@ import {
   roomKey,
   safeJsonParse,
   submissionsKey,
+  votesKey,
   type PlayerData,
   type RoomData,
 } from "@/lib/room";
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
   const ops: Array<Promise<unknown>> = [];
   ops.push(redis.del(submissionsKey(roomId)));
   ops.push(redis.del(dealtRedKey(roomId)));
+  ops.push(redis.del(votesKey(roomId)));
   for (const [playerId, cardIds] of hands.entries()) {
     ops.push(
       redis.set(
@@ -99,6 +101,7 @@ export async function POST(request: Request) {
   ops.push(redis.expire(playersKey(roomId), TTL_SECONDS));
   ops.push(redis.expire(submissionsKey(roomId), TTL_SECONDS));
   ops.push(redis.expire(dealtRedKey(roomId), TTL_SECONDS));
+  ops.push(redis.expire(votesKey(roomId), TTL_SECONDS));
 
   await Promise.all(ops);
 

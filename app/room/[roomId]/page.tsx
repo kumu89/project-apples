@@ -11,13 +11,21 @@ type PlayerSummary = {
 
 type RoomState = {
   roomId: string;
-  phase: "WAITING" | "PROMPT" | "REVEALED";
+  phase: "WAITING" | "SELECT" | "VOTING" | "RESULT";
   prompt: { id: string; text: string } | null;
   players: PlayerSummary[];
   submittedCount: number;
   playerCount: number;
   revealed: boolean;
-  revealedCards?: Array<{ text: string; playerName: string; playerId: string }>;
+  votesCount: number;
+  voterCount: number;
+  revealedCards?: Array<{
+    text: string;
+    playerName: string;
+    playerId: string;
+    voteCount?: number;
+    voters?: string[];
+  }>;
 };
 
 type HandCard = {
@@ -39,6 +47,7 @@ export default function RoomPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [votedForId, setVotedForId] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryRef = useRef(0);
@@ -58,6 +67,8 @@ export default function RoomPage() {
     retryRef.current = 0;
     notFoundRef.current = 0;
     setError(null);
+    setSelectedCardId(null);
+    setVotedForId(null);
   }, [roomId]);
 
   const fetchState = useCallback(async () => {
@@ -140,9 +151,10 @@ export default function RoomPage() {
   }, [playerToken, fetchHand]);
 
   useEffect(() => {
-    if (state?.phase === "WAITING" && playerToken) {
+    if ((state?.phase === "WAITING" || state?.phase === "SELECT") && playerToken) {
       fetchHand(playerToken);
       setSelectedCardId(null);
+      setVotedForId(null);
     }
   }, [state?.phase, playerToken, fetchHand]);
 
@@ -174,14 +186,40 @@ export default function RoomPage() {
   }
 
   const isHost = Boolean(hostToken);
-  const canSubmit = state?.phase === "PROMPT" && !hasSubmitted && !busy;
-  const canRevealPrompt = state?.phase === "WAITING" && !busy;
+  const canSubmit = state?.phase === "SELECT" && !hasSubmitted && !busy;
+  const canRevealPrompt =
+    (state?.phase === "WAITING" || state?.phase === "RESULT") && !busy;
   const canRevealSubmissions =
-    state?.phase === "PROMPT" &&
+    state?.phase === "SELECT" &&
     submittedCount > 0 &&
     submittedCount === totalPlayers &&
     !busy;
-  const canNextRound = state?.phase === "REVEALED" && !busy;
+  const canRevealResults =
+    state?.phase === "VOTING" &&
+    (state?.votesCount ?? 0) > 0 &&
+    (state?.votesCount ?? 0) === (state?.voterCount ?? 0) &&
+    !busy;
+  const canVote =
+    state?.phase === "VOTING" && !votedForId && !busy && Boolean(playerId);
+  const phaseLabel =
+    state?.phase === "WAITING"
+      ? "待機中"
+      : state?.phase === "SELECT"
+        ? "手札選択"
+        : state?.phase === "VOTING"
+          ? "投票"
+          : state?.phase === "RESULT"
+            ? "結果発表"
+            : "読み込み中";
+  const maxVotes =
+    state?.phase === "RESULT"
+      ? Math.max(
+          0,
+          ...(state?.revealedCards ?? []).map(
+            (card) => card.voteCount ?? 0,
+          ),
+        )
+      : 0;
 
   const handleRevealPrompt = async () => {
     if (!hostToken) return;
@@ -257,12 +295,12 @@ export default function RoomPage() {
     }
   };
 
-  const handleNextRound = async () => {
+  const handleRevealResults = async () => {
     if (!hostToken) return;
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/room/nextRound", {
+      const response = await fetch("/api/room/revealResults", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -272,10 +310,36 @@ export default function RoomPage() {
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data?.error ?? "次のラウンドに進めませんでした。");
+        setError(data?.error ?? "結果発表に失敗しました。");
       }
     } catch {
-      setError("次のラウンドに進めませんでした。");
+      setError("結果発表に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleVote = async (targetPlayerId: string) => {
+    if (!playerToken) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/room/vote", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${playerToken}`,
+        },
+        body: JSON.stringify({ roomId, targetPlayerId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data?.error ?? "投票に失敗しました。");
+        return;
+      }
+      setVotedForId(targetPlayerId);
+    } catch {
+      setError("投票に失敗しました。");
     } finally {
       setBusy(false);
     }
@@ -393,7 +457,7 @@ export default function RoomPage() {
               </button>
             </div>
             <p className="mt-2 text-sm text-zinc-600">
-              フェーズ: {state?.phase ?? "読み込み中"}
+              フェーズ: {phaseLabel}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -478,26 +542,69 @@ export default function RoomPage() {
               ) : null}
             </div>
 
-            {state?.phase === "REVEALED" ? (
+            {state?.phase === "VOTING" || state?.phase === "RESULT" ? (
               <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold">公開されたカード</h2>
+                <h2 className="text-lg font-semibold">
+                  {state?.phase === "VOTING" ? "投票" : "結果発表"}
+                </h2>
+                {state?.phase === "VOTING" ? (
+                  <p className="mt-2 text-sm text-zinc-600">
+                    自分以外のカードをタップして投票してください。
+                  </p>
+                ) : null}
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {(state.revealedCards ?? []).map((card, index) => (
-                    <div
-                      key={`${card.text}-${index}`}
-                      className={`rounded-xl border p-4 text-sm ${
-                        card.playerId === playerId
-                          ? "border-zinc-900 bg-white shadow-md"
-                          : "border-zinc-200 bg-zinc-50"
-                      }`}
-                    >
-                      <p className="text-xs text-zinc-500">{card.playerName}</p>
-                      <p className="mt-1 font-semibold text-zinc-900">
-                        {card.text}
-                      </p>
-                    </div>
+                    state.phase === "VOTING" ? (
+                      <button
+                        type="button"
+                        key={`${card.text}-${index}`}
+                        onClick={() => handleVote(card.playerId)}
+                        disabled={!canVote || card.playerId === playerId}
+                        className={`rounded-xl border p-4 text-left text-sm shadow-sm disabled:cursor-not-allowed ${
+                          votedForId === card.playerId
+                            ? "border-zinc-900 bg-white shadow-md"
+                            : "border-zinc-200 bg-zinc-50"
+                        } ${!canVote || card.playerId === playerId ? "opacity-60" : "hover:border-zinc-400"}`}
+                      >
+                        <p className="text-xs text-zinc-500">
+                          {card.playerName}
+                          {card.playerId === playerId ? "（自分）" : ""}
+                        </p>
+                        <p className="mt-1 font-semibold text-zinc-900">
+                          {card.text}
+                        </p>
+                      </button>
+                    ) : (
+                      <div
+                        key={`${card.text}-${index}`}
+                        className={`rounded-xl border p-4 text-sm ${
+                          maxVotes > 0 && card.voteCount === maxVotes
+                            ? "border-amber-400 bg-amber-50 shadow-md"
+                            : "border-zinc-200 bg-zinc-50"
+                        }`}
+                      >
+                        <p className="text-xs text-zinc-500">
+                          {card.playerName}
+                          {card.playerId === playerId ? "（自分）" : ""}
+                        </p>
+                        <p className="mt-1 font-semibold text-zinc-900">
+                          {card.text}
+                        </p>
+                        <p className="mt-2 text-xs text-zinc-600">
+                          得票: {card.voteCount ?? 0}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          投票者: {(card.voters ?? []).join("、") || "なし"}
+                        </p>
+                      </div>
+                    )
                   ))}
                 </div>
+                {state?.phase === "VOTING" && votedForId ? (
+                  <p className="mt-3 text-sm text-green-600">
+                    投票済みです。結果発表を待っています。
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -530,7 +637,7 @@ export default function RoomPage() {
                     disabled={!canRevealPrompt}
                     className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
-                    お題をめくる
+                    次のお題をめくる
                   </button>
                   <button
                     type="button"
@@ -538,15 +645,15 @@ export default function RoomPage() {
                     disabled={!canRevealSubmissions}
                     className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold disabled:opacity-50"
                   >
-                    提出を公開
+                    カード公開
                   </button>
                   <button
                     type="button"
-                    onClick={handleNextRound}
-                    disabled={!canNextRound}
+                    onClick={handleRevealResults}
+                    disabled={!canRevealResults}
                     className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold disabled:opacity-50"
                   >
-                    次のラウンド
+                    結果発表
                   </button>
                 </div>
               </div>

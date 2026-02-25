@@ -6,6 +6,7 @@ import {
   roomKey,
   safeJsonParse,
   submissionsKey,
+  votesKey,
   type PlayerData,
   type RoomData,
   type SubmissionData,
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
   const playersRaw = (await redis.hgetall(playersKey(roomId))) ?? {};
   const submissionsRaw =
     (await redis.hgetall(submissionsKey(roomId))) ?? {};
+  const votesRaw = (await redis.hgetall(votesKey(roomId))) ?? {};
 
   const players: Array<{
     id: string;
@@ -52,9 +54,16 @@ export async function GET(request: Request) {
   });
 
   const promptCard = getGreenCard(room.promptCardId);
-  const submissionsRevealed = room.phase === "REVEALED";
+  const submissionsRevealed =
+    room.phase === "VOTING" || room.phase === "RESULT";
 
-  let revealedCards: Array<{ text: string; playerName: string; playerId: string }> = [];
+  let revealedCards: Array<{
+    text: string;
+    playerName: string;
+    playerId: string;
+    voteCount?: number;
+    voters?: string[];
+  }> = [];
   if (submissionsRevealed) {
     const submissionsByPlayer = new Map(
       Object.entries(submissionsRaw).map(([playerId, value]) => [
@@ -62,21 +71,46 @@ export async function GET(request: Request) {
         safeJsonParse<SubmissionData>(value),
       ]),
     );
+    const playerNames = new Map(players.map((player) => [player.id, player.name]));
+    const votesByVoter = new Map(
+      Object.entries(votesRaw)
+        .map(([voterId, value]) => {
+          const vote = safeJsonParse<{ targetPlayerId: string }>(value);
+          return [voterId, vote?.targetPlayerId ?? null] as const;
+        })
+        .filter(([voterId, target]) => Boolean(voterId) && Boolean(target)),
+    );
+    const votesByTarget = new Map<string, string[]>();
+    for (const [voterId, targetId] of votesByVoter.entries()) {
+      if (!playerNames.has(voterId) || !playerNames.has(targetId ?? "")) continue;
+      const list = votesByTarget.get(targetId as string) ?? [];
+      list.push(playerNames.get(voterId) ?? "Unknown");
+      votesByTarget.set(targetId as string, list);
+    }
+
     revealedCards = players
       .map((player) => {
         const submission = submissionsByPlayer.get(player.id);
         if (!submission) return null;
         const card = getRedCard(submission.cardId);
         if (!card) return null;
+        const voters = votesByTarget.get(player.id) ?? [];
         return {
           text: card.text,
           playerName: player.name,
           playerId: player.id,
+          voteCount: room.phase === "RESULT" ? voters.length : undefined,
+          voters: room.phase === "RESULT" ? voters : undefined,
         };
       })
       .filter(
-        (card): card is { text: string; playerName: string; playerId: string } =>
-          Boolean(card),
+        (card): card is {
+          text: string;
+          playerName: string;
+          playerId: string;
+          voteCount?: number;
+          voters?: string[];
+        } => Boolean(card),
       );
   }
 
@@ -88,7 +122,15 @@ export async function GET(request: Request) {
     submittedCount: number;
     playerCount: number;
     revealed: boolean;
-    revealedCards?: Array<{ text: string; playerName: string; playerId: string }>;
+    votesCount: number;
+    voterCount: number;
+    revealedCards?: Array<{
+      text: string;
+      playerName: string;
+      playerId: string;
+      voteCount?: number;
+      voters?: string[];
+    }>;
   } = {
     roomId,
     phase: room.phase,
@@ -97,6 +139,8 @@ export async function GET(request: Request) {
     submittedCount: players.filter((player) => player.submitted).length,
     playerCount: players.length,
     revealed: submissionsRevealed,
+    votesCount: Object.keys(votesRaw).length,
+    voterCount: players.length,
   };
 
   if (submissionsRevealed) {
