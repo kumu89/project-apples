@@ -116,7 +116,7 @@ export async function GET(request: Request) {
           playerId: string;
           voteCount?: number;
           voters?: string[];
-        } => Boolean(card),
+        } => card !== null,
       );
   }
 
