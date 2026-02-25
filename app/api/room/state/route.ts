@@ -94,30 +94,21 @@ export async function GET(request: Request) {
       votesByTarget.set(targetId, list);
     }
 
-    revealedCards = players
-      .map((player) => {
-        const submission = submissionsByPlayer.get(player.id);
-        if (!submission) return null;
-        const card = getRedCard(submission.cardId);
-        if (!card) return null;
-        const voters = votesByTarget.get(player.id) ?? [];
-        return {
-          text: card.text,
-          playerName: player.name,
-          playerId: player.id,
-          voteCount: room.phase === "RESULT" ? voters.length : undefined,
-          voters: room.phase === "RESULT" ? voters : undefined,
-        };
-      })
-      .filter(
-        (card): card is {
-          text: string;
-          playerName: string;
-          playerId: string;
-          voteCount?: number;
-          voters?: string[];
-        } => card !== null,
-      );
+    revealedCards = [];
+    for (const player of players) {
+      const submission = submissionsByPlayer.get(player.id);
+      if (!submission) continue;
+      const card = getRedCard(submission.cardId);
+      if (!card) continue;
+      const voters = votesByTarget.get(player.id) ?? [];
+      revealedCards.push({
+        text: card.text,
+        playerName: player.name,
+        playerId: player.id,
+        voteCount: room.phase === "RESULT" ? voters.length : undefined,
+        voters: room.phase === "RESULT" ? voters : undefined,
+      });
+    }
   }
 
   const response: {
