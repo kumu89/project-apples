@@ -31,12 +31,16 @@ export async function GET(request: Request) {
     (await redis.hgetall(submissionsKey(roomId))) ?? {};
   const votesRaw = (await redis.hgetall(votesKey(roomId))) ?? {};
 
+  const votesByVoterId = new Map<string, boolean>(
+    Object.keys(votesRaw).map((voterId) => [voterId, true]),
+  );
   const players: Array<{
     id: string;
     name: string;
     submitted: boolean;
     joinedAt: number;
     score: number;
+    voted: boolean;
   }> = [];
   for (const [playerId, value] of Object.entries(playersRaw)) {
     const player = safeJsonParse<PlayerData>(value);
@@ -47,6 +51,7 @@ export async function GET(request: Request) {
       submitted: Boolean(submissionsRaw[playerId]),
       joinedAt: player.joinedAt,
       score: player.score ?? 0,
+      voted: Boolean(votesByVoterId.get(playerId)),
     });
   }
   players.sort((a, b) => a.joinedAt - b.joinedAt);
@@ -125,6 +130,7 @@ export async function GET(request: Request) {
       submitted: boolean;
       joinedAt: number;
       score: number;
+      voted: boolean;
     }>;
     submittedCount: number;
     playerCount: number;
