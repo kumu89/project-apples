@@ -8,6 +8,7 @@ import {
   safeJsonParse,
   submissionsKey,
   tokensKey,
+  votesKey,
   type RoomData,
 } from "@/lib/room";
 
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
     redis.hdel(playersKey(roomId), playerId),
     redis.hdel(tokensKey(roomId), playerToken),
     redis.hdel(submissionsKey(roomId), playerId),
+    redis.hdel(votesKey(roomId), playerId),
     redis.del(handKey(roomId, playerId)),
   ]);
 

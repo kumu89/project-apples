@@ -10,6 +10,7 @@ import {
   roomKey,
   safeJsonParse,
   submissionsKey,
+  votesKey,
   type RoomData,
   type SubmissionData,
 } from "@/lib/room";
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  if (room.phase !== "REVEALED") {
+  if (room.phase !== "RESULT") {
     return NextResponse.json(
       { error: "Round is not finished yet." },
       { status: 409 },
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
   };
 
   await redis.del(submissionsKey(roomId));
+  await redis.del(votesKey(roomId));
   await redis.set(roomKey(roomId), JSON.stringify(updatedRoom));
   await Promise.all([
     ...handOps,
@@ -100,6 +102,7 @@ export async function POST(request: Request) {
     redis.expire(roomKey(roomId), TTL_SECONDS),
     redis.expire(submissionsKey(roomId), TTL_SECONDS),
     redis.expire(dealtRedKey(roomId), TTL_SECONDS),
+    redis.expire(votesKey(roomId), TTL_SECONDS),
   ]);
 
   return NextResponse.json({ ok: true });

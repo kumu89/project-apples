@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  if (room.phase !== "PROMPT") {
+  if (room.phase !== "SELECT") {
     return NextResponse.json(
       { error: "Submissions are not open." },
       { status: 409 },
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
   const updatedRoom: RoomData = {
     ...room,
-    phase: "REVEALED",
+    phase: "VOTING",
     updatedAt: nowMs(),
   };
 

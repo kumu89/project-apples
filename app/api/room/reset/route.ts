@@ -11,6 +11,7 @@ import {
   roomKey,
   safeJsonParse,
   submissionsKey,
+  votesKey,
   type PlayerData,
   type RoomData,
 } from "@/lib/room";
@@ -59,13 +60,17 @@ export async function POST(request: Request) {
   }
 
   const playersRaw = (await redis.hgetall(playersKey(roomId))) ?? {};
-  const playerIds = Object.entries(playersRaw)
-    .map(([playerId, value]) =>
-      safeJsonParse<PlayerData>(value) ? playerId : null,
-    )
-    .filter((playerId): playerId is string => Boolean(playerId));
+  const players = Object.entries(playersRaw)
+    .map(([playerId, value]) => {
+      const player = safeJsonParse<PlayerData>(value);
+      return player ? { playerId, player } : null;
+    })
+    .filter(
+      (entry): entry is { playerId: string; player: PlayerData } =>
+        Boolean(entry),
+    );
 
-  const hands = dealHands(playerIds);
+  const hands = dealHands(players.map((entry) => entry.playerId));
   if (!hands) {
     return NextResponse.json(
       { error: "No cards available." },
@@ -78,13 +83,25 @@ export async function POST(request: Request) {
     phase: "WAITING",
     promptCardId: null,
     updatedAt: nowMs(),
-    round: 1,
+    round: 0,
   };
 
   const ops: Array<Promise<unknown>> = [];
   ops.push(redis.del(submissionsKey(roomId)));
   ops.push(redis.del(dealtRedKey(roomId)));
+  ops.push(redis.del(votesKey(roomId)));
   for (const [playerId, cardIds] of hands.entries()) {
+    const existing = players.find((entry) => entry.playerId === playerId);
+    if (existing) {
+      ops.push(
+        redis.hset(playersKey(roomId), {
+          [playerId]: JSON.stringify({
+            ...existing.player,
+            score: 0,
+          }),
+        }),
+      );
+    }
     ops.push(
       redis.set(
         handKey(roomId, playerId),
@@ -99,6 +116,7 @@ export async function POST(request: Request) {
   ops.push(redis.expire(playersKey(roomId), TTL_SECONDS));
   ops.push(redis.expire(submissionsKey(roomId), TTL_SECONDS));
   ops.push(redis.expire(dealtRedKey(roomId), TTL_SECONDS));
+  ops.push(redis.expire(votesKey(roomId), TTL_SECONDS));
 
   await Promise.all(ops);
 

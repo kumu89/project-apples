@@ -69,7 +69,12 @@ export async function POST(request: Request) {
   const hand = pickHand(used);
 
   await redis.hset(playersKey(roomId), {
-    [playerId]: JSON.stringify({ id: playerId, name, joinedAt: timestamp }),
+    [playerId]: JSON.stringify({
+      id: playerId,
+      name,
+      joinedAt: timestamp,
+      score: 0,
+    }),
   });
   await redis.hset(tokensKey(roomId), {
     [playerToken]: playerId,

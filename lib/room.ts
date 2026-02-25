@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 
-export type RoomPhase = "WAITING" | "PROMPT" | "REVEALED";
+export type RoomPhase = "WAITING" | "SELECT" | "VOTING" | "RESULT";
 
 export type RoomData = {
   roomId: string;
@@ -17,6 +17,7 @@ export type PlayerData = {
   id: string;
   name: string;
   joinedAt: number;
+  score: number;
 };
 
 export type SubmissionData = {
@@ -30,6 +31,7 @@ export const roomKey = (roomId: string) => `room:${roomId}`;
 export const playersKey = (roomId: string) => `room:${roomId}:players`;
 export const tokensKey = (roomId: string) => `room:${roomId}:tokens`;
 export const submissionsKey = (roomId: string) => `room:${roomId}:submissions`;
+export const votesKey = (roomId: string) => `room:${roomId}:votes`;
 export const handKey = (roomId: string, playerId: string) =>
   `room:${roomId}:hands:${playerId}`;
 export const dealtRedKey = (roomId: string) => `room:${roomId}:dealtRed`;
