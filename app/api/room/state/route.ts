@@ -36,6 +36,7 @@ export async function GET(request: Request) {
     name: string;
     submitted: boolean;
     joinedAt: number;
+    score: number;
   }> = [];
   for (const [playerId, value] of Object.entries(playersRaw)) {
     const player = safeJsonParse<PlayerData>(value);
@@ -45,13 +46,10 @@ export async function GET(request: Request) {
       name: player.name,
       submitted: Boolean(submissionsRaw[playerId]),
       joinedAt: player.joinedAt,
+      score: player.score ?? 0,
     });
   }
-  players.sort((a, b) => {
-    if (a.id === room.hostId) return -1;
-    if (b.id === room.hostId) return 1;
-    return a.joinedAt - b.joinedAt;
-  });
+  players.sort((a, b) => a.joinedAt - b.joinedAt);
 
   const promptCard = getGreenCard(room.promptCardId);
   const submissionsRevealed =
@@ -81,11 +79,14 @@ export async function GET(request: Request) {
         .filter(([voterId, target]) => Boolean(voterId) && Boolean(target)),
     );
     const votesByTarget = new Map<string, string[]>();
-    for (const [voterId, targetId] of votesByVoter.entries()) {
-      if (!playerNames.has(voterId) || !playerNames.has(targetId ?? "")) continue;
-      const list = votesByTarget.get(targetId as string) ?? [];
+    const joinOrderIds = players.map((player) => player.id);
+    for (const voterId of joinOrderIds) {
+      const targetId = votesByVoter.get(voterId);
+      if (!targetId) continue;
+      if (!playerNames.has(voterId) || !playerNames.has(targetId)) continue;
+      const list = votesByTarget.get(targetId) ?? [];
       list.push(playerNames.get(voterId) ?? "Unknown");
-      votesByTarget.set(targetId as string, list);
+      votesByTarget.set(targetId, list);
     }
 
     revealedCards = players
@@ -118,12 +119,19 @@ export async function GET(request: Request) {
     roomId: string;
     phase: RoomData["phase"];
     prompt: { id: string; text: string } | null;
-    players: Array<{ id: string; name: string; submitted: boolean }>;
+    players: Array<{
+      id: string;
+      name: string;
+      submitted: boolean;
+      joinedAt: number;
+      score: number;
+    }>;
     submittedCount: number;
     playerCount: number;
     revealed: boolean;
     votesCount: number;
     voterCount: number;
+    round: number;
     revealedCards?: Array<{
       text: string;
       playerName: string;
@@ -141,6 +149,7 @@ export async function GET(request: Request) {
     revealed: submissionsRevealed,
     votesCount: Object.keys(votesRaw).length,
     voterCount: players.length,
+    round: room.round,
   };
 
   if (submissionsRevealed) {

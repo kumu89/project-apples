@@ -112,6 +112,7 @@ export async function POST(request: Request) {
     phase: "SELECT",
     promptCardId: nextPrompt.id,
     updatedAt: nowMs(),
+    round: room.round + 1,
   };
 
   await redis.set(roomKey(roomId), JSON.stringify(updatedRoom));

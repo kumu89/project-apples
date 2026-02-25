@@ -54,6 +54,51 @@ export async function POST(request: Request) {
     );
   }
 
+  const playersRaw = (await redis.hgetall(playersKey(roomId))) ?? {};
+  const playerMap = new Map(
+    Object.entries(playersRaw)
+      .map(([playerId, value]) => {
+        const player = safeJsonParse<{ score: number } & Record<string, unknown>>(
+          value,
+        );
+        return player ? [playerId, player] : null;
+      })
+      .filter((entry): entry is [string, { score: number } & Record<string, unknown>] =>
+        Boolean(entry),
+      ),
+  );
+
+  const voteCounts = new Map<string, number>();
+  for (const value of Object.values(votesRaw)) {
+    const vote = safeJsonParse<{ targetPlayerId: string }>(value);
+    const targetId = vote?.targetPlayerId;
+    if (!targetId || !playerMap.has(targetId)) continue;
+    voteCounts.set(targetId, (voteCounts.get(targetId) ?? 0) + 1);
+  }
+
+  const maxVotes =
+    voteCounts.size > 0 ? Math.max(...Array.from(voteCounts.values())) : 0;
+  const winners = Array.from(voteCounts.entries())
+    .filter(([, count]) => count === maxVotes)
+    .map(([playerId]) => playerId);
+  const scoreDelta = winners.length > 1 ? 1 : 3;
+
+  const scoreOps: Array<Promise<unknown>> = [];
+  if (maxVotes > 0) {
+    for (const playerId of winners) {
+      const player = playerMap.get(playerId);
+      if (!player) continue;
+      scoreOps.push(
+        redis.hset(playersKey(roomId), {
+          [playerId]: JSON.stringify({
+            ...player,
+            score: (player.score ?? 0) + scoreDelta,
+          }),
+        }),
+      );
+    }
+  }
+
   const updatedRoom: RoomData = {
     ...room,
     phase: "RESULT",
@@ -62,7 +107,9 @@ export async function POST(request: Request) {
 
   await redis.set(roomKey(roomId), JSON.stringify(updatedRoom));
   await Promise.all([
+    ...scoreOps,
     redis.expire(roomKey(roomId), TTL_SECONDS),
+    redis.expire(playersKey(roomId), TTL_SECONDS),
     redis.expire(votesKey(roomId), TTL_SECONDS),
   ]);
 

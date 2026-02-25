@@ -17,6 +17,7 @@ export type PlayerData = {
   id: string;
   name: string;
   joinedAt: number;
+  score: number;
 };
 
 export type SubmissionData = {

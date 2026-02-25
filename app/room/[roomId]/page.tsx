@@ -7,6 +7,8 @@ type PlayerSummary = {
   id: string;
   name: string;
   submitted: boolean;
+  joinedAt: number;
+  score: number;
 };
 
 type RoomState = {
@@ -19,6 +21,7 @@ type RoomState = {
   revealed: boolean;
   votesCount: number;
   voterCount: number;
+  round: number;
   revealedCards?: Array<{
     text: string;
     playerName: string;
@@ -160,6 +163,13 @@ export default function RoomPage() {
 
   const submittedCount = state?.submittedCount ?? 0;
   const totalPlayers = state?.playerCount ?? 0;
+  const sortedPlayers = useMemo(() => {
+    if (!state) return [];
+    return [...state.players].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.joinedAt - b.joinedAt;
+    });
+  }, [state]);
   const hasSubmitted = useMemo(() => {
     if (!state || !playerId) return false;
     return state.players.find((player) => player.id === playerId)?.submitted;
@@ -459,6 +469,9 @@ export default function RoomPage() {
             <p className="mt-2 text-sm text-zinc-600">
               フェーズ: {phaseLabel}
             </p>
+            <p className="mt-1 text-sm text-zinc-600">
+              ターン: {state?.round ?? 0}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="rounded-full bg-zinc-100 px-3 py-1">
@@ -613,14 +626,22 @@ export default function RoomPage() {
             <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold">プレイヤー</h2>
               <ul className="mt-4 space-y-2 text-sm">
-                {state?.players.map((player) => (
+                {sortedPlayers.map((player, index) => (
                   <li
                     key={player.id}
                     className="flex items-center justify-between rounded-lg border border-zinc-100 px-3 py-2"
                   >
-                    <span>{player.name}</span>
-                    <span className="text-xs text-zinc-500">
-                      {player.submitted ? "提出済み" : "待機中"}
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs">
+                        {index + 1}位
+                      </span>
+                      <span>{player.name}</span>
+                      <span className="text-xs text-zinc-500">
+                        {player.submitted ? "提出済み" : "待機中"}
+                      </span>
+                    </div>
+                    <span className="text-xs text-zinc-600">
+                      {player.score}点
                     </span>
                   </li>
                 ))}

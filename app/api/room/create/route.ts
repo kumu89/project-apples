@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     promptCardId: null,
     createdAt: timestamp,
     updatedAt: timestamp,
-    round: 1,
+    round: 0,
   };
 
   const used = new Set<string>();
@@ -80,7 +80,12 @@ export async function POST(request: Request) {
 
   await redis.set(roomKey(roomId), JSON.stringify(room));
   await redis.hset(playersKey(roomId), {
-    [playerId]: JSON.stringify({ id: playerId, name, joinedAt: timestamp }),
+    [playerId]: JSON.stringify({
+      id: playerId,
+      name,
+      joinedAt: timestamp,
+      score: 0,
+    }),
   });
   await redis.hset(tokensKey(roomId), {
     [playerToken]: playerId,
