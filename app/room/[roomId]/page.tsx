@@ -536,12 +536,12 @@ export default function RoomPage() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-950 via-indigo-950 to-fuchsia-900 px-4 py-6 text-white sm:px-6">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <header className="rounded-3xl border border-white/30 bg-white/10 p-5 shadow-xl backdrop-blur sm:p-6">
+    <div className="min-h-screen overflow-x-hidden bg-linear-to-br from-slate-950 via-indigo-950 to-fuchsia-900 px-4 py-6 text-white sm:px-6">
+      <main className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6 overflow-x-hidden">
+        <header className="w-full max-w-full rounded-3xl border border-white/30 bg-white/10 p-5 shadow-xl backdrop-blur sm:p-6">
           <div className="lg:hidden">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
-              <div className="flex flex-col items-start gap-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
+              <div className="min-w-0 flex flex-col items-start gap-2">
                 <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white">
                   {isHost ? "ホスト" : "プレイヤー"}
                 </span>
@@ -549,35 +549,47 @@ export default function RoomPage() {
                   <PrimaryButton
                     onClick={handleRevealPrompt}
                     disabled={!canRevealPrompt}
-                    className="px-4 py-2 text-xs"
+                    className="px-3 py-2 text-[11px]"
                   >
                     お題をめくる
                   </PrimaryButton>
                 ) : null}
               </div>
-              <div className="flex flex-col items-center text-center">
+              <div className="min-w-0 flex flex-col items-center text-center">
                 <p className="text-[11px] font-semibold tracking-widest text-white/70">
                   ルームID
                 </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-2xl font-semibold tracking-[0.25em]">
+                <div className="mt-2 flex flex-col items-center gap-1">
+                  <span className="text-xl font-semibold tracking-[0.2em] sm:text-2xl">
                     {roomId}
                   </span>
                   <GhostButton onClick={handleCopyRoomId}>コピー</GhostButton>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
+              <div className="min-w-0 flex flex-col items-end gap-2">
                 {isHost ? (
                   <>
-                    <OutlineButton onClick={handleReset} disabled={busy}>
+                    <OutlineButton
+                      onClick={handleReset}
+                      disabled={busy}
+                      className="px-3 py-2 text-[11px]"
+                    >
                       ゲームリセット
                     </OutlineButton>
-                    <DangerButton onClick={handleDeleteRoom} disabled={busy}>
+                    <DangerButton
+                      onClick={handleDeleteRoom}
+                      disabled={busy}
+                      className="px-3 py-2 text-[11px]"
+                    >
                       ルーム削除
                     </DangerButton>
                   </>
                 ) : (
-                  <OutlineButton onClick={handleLeaveRoom} disabled={busy}>
+                  <OutlineButton
+                    onClick={handleLeaveRoom}
+                    disabled={busy}
+                    className="px-3 py-2 text-[11px]"
+                  >
                     退出
                   </OutlineButton>
                 )}
@@ -629,19 +641,19 @@ export default function RoomPage() {
           </div>
         </header>
 
-        <section className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <div className="order-1 rounded-3xl border border-white/30 bg-white/10 p-4 shadow-xl backdrop-blur lg:order-0 lg:p-5">
+        <section className="grid w-full min-w-0 gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+          <div className="order-1 w-full min-w-0 rounded-3xl border border-white/30 bg-white/10 p-4 shadow-xl backdrop-blur lg:order-0 lg:p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-white">メンバー</h2>
               <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white">
                 {phaseLabel}
               </span>
             </div>
-            <div className="mt-4 flex gap-3 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible">
+            <div className="mt-4 flex w-full min-w-0 gap-3 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible">
               {rankedPlayers.map((player) => (
                 <div
                   key={player.id}
-                  className={`relative min-w-[110px] rounded-2xl border p-3 text-center ${
+                  className={`relative min-w-[96px] rounded-2xl border p-3 text-center ${
                     player.rank === 1
                       ? "border-amber-300 bg-amber-50 text-amber-900"
                       : "border-white/30 bg-white/95 text-zinc-900"
@@ -657,7 +669,7 @@ export default function RoomPage() {
                       badgeType={badgeType}
                     />
                   </div>
-                  <p className="mt-2 truncate text-sm font-semibold">
+                  <p className="mt-2 truncate text-xs font-semibold">
                     {player.name}
                   </p>
                   {isHost && player.id !== playerId ? (
@@ -675,10 +687,10 @@ export default function RoomPage() {
             </div>
           </div>
 
-          <div className="order-2 flex flex-col gap-6">
-            <section className="rounded-3xl border border-white/30 bg-white/10 p-5 shadow-xl backdrop-blur">
+          <div className="order-2 flex w-full min-w-0 flex-col gap-6">
+            <section className="w-full min-w-0 rounded-3xl border border-white/30 bg-white/10 p-4 shadow-xl backdrop-blur sm:p-5">
               <div
-                className={`rounded-3xl border-2 border-dashed border-indigo-200 bg-indigo-50/80 text-center font-semibold text-indigo-900 ${
+                className={`w-full max-w-full rounded-3xl border-2 border-dashed border-indigo-200 bg-indigo-50/80 text-center font-semibold text-indigo-900 ${
                   isVotingPhase ? "p-4 text-sm sm:text-base" : "p-7 text-lg"
                 }`}
               >
@@ -686,11 +698,11 @@ export default function RoomPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl border border-white/30 bg-white/10 p-5 shadow-xl backdrop-blur">
+            <section className="w-full min-w-0 rounded-3xl border border-white/30 bg-white/10 p-4 shadow-xl backdrop-blur sm:p-5">
               <div
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
-                className={`rounded-3xl border-2 border-dashed px-4 py-5 text-center text-sm font-semibold ${
+                className={`w-full max-w-full rounded-3xl border-2 border-dashed px-4 py-5 text-center text-sm font-semibold ${
                   canSubmit
                     ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
                     : "border-white/30 bg-white/95 text-zinc-600"
@@ -773,7 +785,7 @@ export default function RoomPage() {
             </section>
 
             <section
-              className={`rounded-3xl border border-white/30 bg-white/10 p-5 shadow-xl backdrop-blur ${
+              className={`w-full min-w-0 rounded-3xl border border-white/30 bg-white/10 p-4 shadow-xl backdrop-blur sm:p-5 ${
                 isVotingPhase ? "hidden lg:block" : ""
               }`}
             >
@@ -786,7 +798,7 @@ export default function RoomPage() {
                   <p className="text-xs font-semibold text-white/70">
                     ダブルタップで選択（ドラッグもOK）
                   </p>
-                  <div className="mt-3 flex gap-3 overflow-x-auto pb-2 lg:grid lg:grid-cols-3 lg:overflow-visible">
+                  <div className="mt-3 flex w-full min-w-0 gap-3 overflow-x-auto pb-2 lg:grid lg:grid-cols-3 lg:overflow-visible">
                     {visibleHand.map((card) => (
                       <button
                         type="button"
@@ -795,7 +807,7 @@ export default function RoomPage() {
                         onDragStart={(event) => handleDragStart(event, card.id)}
                         onClick={() => handleCardTap(card.id)}
                         disabled={!canSubmit}
-                        className={`min-w-[200px] rounded-3xl border bg-white p-4 text-left text-sm font-semibold shadow-sm transition hover:-translate-y-1 hover:border-indigo-300 disabled:cursor-not-allowed lg:min-w-0 ${
+                        className={`min-w-[160px] rounded-3xl border bg-white p-3 text-left text-sm font-semibold shadow-sm transition hover:-translate-y-1 hover:border-indigo-300 disabled:cursor-not-allowed lg:min-w-0 lg:p-4 ${
                           card.id === focusCardId
                             ? "border-fuchsia-400 ring-2 ring-fuchsia-200"
                             : "border-slate-200"
