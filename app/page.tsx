@@ -248,9 +248,17 @@ export default function Home() {
           {profileError ? (
             <p className="text-sm font-semibold text-red-600">{profileError}</p>
           ) : null}
-          <PrimaryButton onClick={saveProfile} className="w-full">
-            保存する
-          </PrimaryButton>
+          <div className="flex gap-3">
+            <OutlineButton
+              onClick={() => setProfileOpen(false)}
+              className="flex-1"
+            >
+              キャンセル
+            </OutlineButton>
+            <PrimaryButton onClick={saveProfile} className="flex-1">
+              保存する
+            </PrimaryButton>
+          </div>
         </div>
       </Modal>
 
