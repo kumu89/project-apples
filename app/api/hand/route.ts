@@ -4,6 +4,7 @@ import { getBearerToken } from "@/lib/auth";
 import { redis } from "@/lib/redis";
 import {
   handKey,
+  normalizeRoomId,
   roomKey,
   safeJsonParse,
   tokensKey,
@@ -12,32 +13,38 @@ import {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const roomId = searchParams.get("roomId")?.toUpperCase().trim() ?? "";
+  const roomId = normalizeRoomId(searchParams.get("roomId") ?? "");
   const token = getBearerToken(request);
 
-  if (!roomId) {
-    return NextResponse.json({ error: "Room ID is required." }, { status: 400 });
+  if (!roomId || roomId.length !== 5) {
+    return NextResponse.json(
+      { error: "5桁のルームIDが必要です。" },
+      { status: 400 },
+    );
   }
 
   if (!token) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    return NextResponse.json({ error: "認証に失敗しました。" }, { status: 401 });
   }
 
   const roomRaw = await redis.get<string>(roomKey(roomId));
   const room = safeJsonParse<RoomData>(roomRaw);
   if (!room) {
-    return NextResponse.json({ error: "Room not found." }, { status: 404 });
+    return NextResponse.json(
+      { error: "ルームが見つかりません。" },
+      { status: 404 },
+    );
   }
 
   const playerId = await redis.hget<string>(tokensKey(roomId), token);
   if (!playerId) {
-    return NextResponse.json({ error: "Invalid token." }, { status: 403 });
+    return NextResponse.json({ error: "トークンが無効です。" }, { status: 403 });
   }
 
   const handRaw = await redis.get<string>(handKey(roomId, playerId));
   const hand = safeJsonParse<{ cardIds: string[] }>(handRaw);
   if (!hand) {
-    return NextResponse.json({ error: "Hand not found." }, { status: 404 });
+    return NextResponse.json({ error: "手札が見つかりません。" }, { status: 404 });
   }
 
   const cards = hand.cardIds

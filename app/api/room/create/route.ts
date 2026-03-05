@@ -12,6 +12,7 @@ import {
   roomKey,
   tokensKey,
 } from "@/lib/room";
+import { DEFAULT_PROFILE } from "@/lib/profile";
 import { redCards } from "@/data/cards";
 
 const HAND_SIZE = 8;
@@ -35,11 +36,15 @@ function pickHand(used: Set<string>): string[] {
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as
-    | { name?: string }
+    | { name?: string; icon?: string }
     | null;
   const name = normalizeName(body?.name ?? "");
+  const icon = body?.icon ?? DEFAULT_PROFILE.icon;
   if (!name) {
-    return NextResponse.json({ error: "Name is required." }, { status: 400 });
+    return NextResponse.json(
+      { error: "名前を入力してください。" },
+      { status: 400 },
+    );
   }
 
   let roomId = "";
@@ -54,7 +59,7 @@ export async function POST(request: Request) {
 
   if (!roomId) {
     return NextResponse.json(
-      { error: "Failed to create room." },
+      { error: "ルーム作成に失敗しました。" },
       { status: 500 },
     );
   }
@@ -83,6 +88,7 @@ export async function POST(request: Request) {
     [playerId]: JSON.stringify({
       id: playerId,
       name,
+      icon,
       joinedAt: timestamp,
       score: 0,
     }),

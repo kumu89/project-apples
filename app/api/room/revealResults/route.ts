@@ -4,6 +4,7 @@ import { redis } from "@/lib/redis";
 import {
   TTL_SECONDS,
   nowMs,
+  normalizeRoomId,
   playersKey,
   roomKey,
   safeJsonParse,
@@ -15,30 +16,36 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as
     | { roomId?: string }
     | null;
-  const roomId = body?.roomId?.toUpperCase().trim() ?? "";
+  const roomId = normalizeRoomId(body?.roomId ?? "");
   const hostToken = getBearerToken(request);
 
-  if (!roomId) {
-    return NextResponse.json({ error: "Room ID is required." }, { status: 400 });
+  if (!roomId || roomId.length !== 5) {
+    return NextResponse.json(
+      { error: "5桁のルームIDが必要です。" },
+      { status: 400 },
+    );
   }
 
   if (!hostToken) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    return NextResponse.json({ error: "認証に失敗しました。" }, { status: 401 });
   }
 
   const roomRaw = await redis.get<string>(roomKey(roomId));
   const room = safeJsonParse<RoomData>(roomRaw);
   if (!room) {
-    return NextResponse.json({ error: "Room not found." }, { status: 404 });
+    return NextResponse.json(
+      { error: "ルームが見つかりません。" },
+      { status: 404 },
+    );
   }
 
   if (room.hostToken !== hostToken) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    return NextResponse.json({ error: "権限がありません。" }, { status: 403 });
   }
 
   if (room.phase !== "VOTING") {
     return NextResponse.json(
-      { error: "Voting is not open." },
+      { error: "投票は開始されていません。" },
       { status: 409 },
     );
   }
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
 
   if (players === 0 || votesCount < players) {
     return NextResponse.json(
-      { error: "Not all players voted." },
+      { error: "まだ全員が投票していません。" },
       { status: 409 },
     );
   }

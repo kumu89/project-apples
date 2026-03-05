@@ -3,6 +3,7 @@ import { getBearerToken } from "@/lib/auth";
 import { redis } from "@/lib/redis";
 import {
   handKey,
+  normalizeRoomId,
   playersKey,
   roomKey,
   safeJsonParse,
@@ -16,32 +17,35 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as
     | { roomId?: string; targetPlayerId?: string }
     | null;
-  const roomId = body?.roomId?.toUpperCase().trim() ?? "";
+  const roomId = normalizeRoomId(body?.roomId ?? "");
   const targetPlayerId = body?.targetPlayerId ?? "";
   const hostToken = getBearerToken(request);
 
-  if (!roomId || !targetPlayerId) {
+  if (!roomId || roomId.length !== 5 || !targetPlayerId) {
     return NextResponse.json(
-      { error: "Room ID and target are required." },
+      { error: "5桁のルームIDと対象は必須です。" },
       { status: 400 },
     );
   }
   if (!hostToken) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    return NextResponse.json({ error: "認証に失敗しました。" }, { status: 401 });
   }
 
   const roomRaw = await redis.get<string>(roomKey(roomId));
   const room = safeJsonParse<RoomData>(roomRaw);
   if (!room) {
-    return NextResponse.json({ error: "Room not found." }, { status: 404 });
+    return NextResponse.json(
+      { error: "ルームが見つかりません。" },
+      { status: 404 },
+    );
   }
 
   if (room.hostToken !== hostToken) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    return NextResponse.json({ error: "権限がありません。" }, { status: 403 });
   }
   if (targetPlayerId === room.hostId) {
     return NextResponse.json(
-      { error: "Cannot remove host." },
+      { error: "ホストは退出させられません。" },
       { status: 409 },
     );
   }
