@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getGreenCard, getRedCard } from "@/data/cards";
 import { redis } from "@/lib/redis";
 import {
+  normalizeRoomId,
   playersKey,
   roomKey,
   safeJsonParse,
@@ -14,16 +15,22 @@ import {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const roomId = searchParams.get("roomId")?.toUpperCase().trim() ?? "";
+  const roomId = normalizeRoomId(searchParams.get("roomId") ?? "");
 
-  if (!roomId) {
-    return NextResponse.json({ error: "Room ID is required." }, { status: 400 });
+  if (!roomId || roomId.length !== 5) {
+    return NextResponse.json(
+      { error: "5桁のルームIDが必要です。" },
+      { status: 400 },
+    );
   }
 
   const roomRaw = await redis.get<string>(roomKey(roomId));
   const room = safeJsonParse<RoomData>(roomRaw);
   if (!room) {
-    return NextResponse.json({ error: "Room not found." }, { status: 404 });
+    return NextResponse.json(
+      { error: "ルームが見つかりません。" },
+      { status: 404 },
+    );
   }
 
   const playersRaw = (await redis.hgetall(playersKey(roomId))) ?? {};
@@ -37,6 +44,7 @@ export async function GET(request: Request) {
   const players: Array<{
     id: string;
     name: string;
+    icon: string;
     submitted: boolean;
     joinedAt: number;
     score: number;
@@ -48,6 +56,7 @@ export async function GET(request: Request) {
     players.push({
       id: playerId,
       name: player.name,
+      icon: player.icon ?? "blue",
       submitted: Boolean(submissionsRaw[playerId]),
       joinedAt: player.joinedAt,
       score: player.score ?? 0,
@@ -74,7 +83,12 @@ export async function GET(request: Request) {
         safeJsonParse<SubmissionData>(value),
       ]),
     );
-    const playerNames = new Map(players.map((player) => [player.id, player.name]));
+    const playerNames = new Map(
+      players.map((player) => [player.id, player.name]),
+    );
+    const playerIcons = new Map(
+      players.map((player) => [player.id, player.icon]),
+    );
     const votesByVoter = new Map(
       Object.entries(votesRaw)
         .map(([voterId, value]) => {
@@ -90,7 +104,7 @@ export async function GET(request: Request) {
       if (!targetId) continue;
       if (!playerNames.has(voterId) || !playerNames.has(targetId)) continue;
       const list = votesByTarget.get(targetId) ?? [];
-      list.push(playerNames.get(voterId) ?? "Unknown");
+      list.push(playerNames.get(voterId) ?? "不明");
       votesByTarget.set(targetId, list);
     }
 
@@ -104,6 +118,7 @@ export async function GET(request: Request) {
       revealedCards.push({
         text: card.text,
         playerName: player.name,
+        playerIcon: playerIcons.get(player.id) ?? "blue",
         playerId: player.id,
         voteCount: room.phase === "RESULT" ? voters.length : undefined,
         voters: room.phase === "RESULT" ? voters : undefined,
@@ -118,6 +133,7 @@ export async function GET(request: Request) {
     players: Array<{
       id: string;
       name: string;
+      icon: string;
       submitted: boolean;
       joinedAt: number;
       score: number;
@@ -132,6 +148,7 @@ export async function GET(request: Request) {
     revealedCards?: Array<{
       text: string;
       playerName: string;
+      playerIcon: string;
       playerId: string;
       voteCount?: number;
       voters?: string[];

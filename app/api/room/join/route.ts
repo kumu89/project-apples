@@ -7,6 +7,7 @@ import {
   dealtRedKey,
   handKey,
   normalizeName,
+  normalizeRoomId,
   nowMs,
   playersKey,
   roomKey,
@@ -14,6 +15,7 @@ import {
   tokensKey,
   type RoomData,
 } from "@/lib/room";
+import { DEFAULT_PROFILE } from "@/lib/profile";
 
 const HAND_SIZE = 8;
 
@@ -36,14 +38,15 @@ function pickHand(used: Set<string>): string[] {
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as
-    | { roomId?: string; name?: string }
+    | { roomId?: string; name?: string; icon?: string }
     | null;
-  const roomId = body?.roomId?.toUpperCase().trim() ?? "";
+  const roomId = normalizeRoomId(body?.roomId ?? "");
   const name = normalizeName(body?.name ?? "");
+  const icon = body?.icon ?? DEFAULT_PROFILE.icon;
 
-  if (!roomId || !name) {
+  if (!roomId || roomId.length !== 5 || !name) {
     return NextResponse.json(
-      { error: "Room ID and name are required." },
+      { error: "5桁のルームIDと名前は必須です。" },
       { status: 400 },
     );
   }
@@ -51,11 +54,14 @@ export async function POST(request: Request) {
   const roomRaw = await redis.get<string>(roomKey(roomId));
   const room = safeJsonParse<RoomData>(roomRaw);
   if (!room) {
-    return NextResponse.json({ error: "Room not found." }, { status: 404 });
+    return NextResponse.json(
+      { error: "ルームが見つかりません。" },
+      { status: 404 },
+    );
   }
   if (room.phase !== "WAITING") {
     return NextResponse.json(
-      { error: "Room is not accepting new players." },
+      { error: "このルームは参加受付中ではありません。" },
       { status: 409 },
     );
   }
@@ -72,6 +78,7 @@ export async function POST(request: Request) {
     [playerId]: JSON.stringify({
       id: playerId,
       name,
+      icon,
       joinedAt: timestamp,
       score: 0,
     }),

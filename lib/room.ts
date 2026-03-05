@@ -16,6 +16,7 @@ export type RoomData = {
 export type PlayerData = {
   id: string;
   name: string;
+  icon: string;
   joinedAt: number;
   score: number;
 };
@@ -39,7 +40,7 @@ export const dealtRedKey = (roomId: string) => `room:${roomId}:dealtRed`;
 export const nowMs = () => Date.now();
 
 export function createRoomId(): string {
-  return Math.random().toString(36).slice(2, 8).toUpperCase();
+  return String(Math.floor(10000 + Math.random() * 90000));
 }
 
 export function createToken(): string {
@@ -60,5 +61,9 @@ export function safeJsonParse<T>(value: unknown): T | null {
 
 export function normalizeName(raw: string): string {
   return raw.trim().slice(0, 24);
+}
+
+export function normalizeRoomId(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, 5);
 }
 
