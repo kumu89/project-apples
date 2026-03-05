@@ -807,7 +807,7 @@ export default function RoomPage() {
                         onDragStart={(event) => handleDragStart(event, card.id)}
                         onClick={() => handleCardTap(card.id)}
                         disabled={!canSubmit}
-                        className={`min-w-[160px] rounded-3xl border bg-white p-3 text-left text-sm font-semibold shadow-sm transition hover:-translate-y-1 hover:border-indigo-300 disabled:cursor-not-allowed lg:min-w-0 lg:p-4 ${
+                        className={`min-w-[160px] rounded-3xl border bg-white p-3 text-left text-sm font-semibold text-zinc-900 shadow-sm transition hover:-translate-y-1 hover:border-indigo-300 disabled:cursor-not-allowed lg:min-w-0 lg:p-4 ${
                           card.id === focusCardId
                             ? "border-fuchsia-400 ring-2 ring-fuchsia-200"
                             : "border-slate-200"
