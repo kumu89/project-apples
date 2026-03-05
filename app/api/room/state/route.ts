@@ -72,6 +72,7 @@ export async function GET(request: Request) {
   let revealedCards: Array<{
     text: string;
     playerName: string;
+    playerIcon: string;
     playerId: string;
     voteCount?: number;
     voters?: string[];
