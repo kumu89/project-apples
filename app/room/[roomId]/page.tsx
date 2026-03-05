@@ -56,6 +56,7 @@ export default function RoomPage() {
   const [notFoundReason, setNotFoundReason] = useState<"missing" | "deleted">(
     "missing",
   );
+  const [kicked, setKicked] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryRef = useRef(0);
   const notFoundRef = useRef(0);
@@ -77,10 +78,11 @@ export default function RoomPage() {
     setSelectedCardId(null);
     setVotedForId(null);
     setNotFoundReason("missing");
+    setKicked(false);
   }, [roomId]);
 
   const fetchState = useCallback(async () => {
-    if (!roomId || notFound) return;
+    if (!roomId || notFound || kicked) return;
     try {
       const response = await fetch(`/api/room/state?roomId=${roomId}`);
       const data = await response.json();
@@ -117,7 +119,7 @@ export default function RoomPage() {
         setError("ルームの取得に失敗しました。");
       }
     }
-  }, [roomId, notFound, playerToken, hostToken, state]);
+  }, [roomId, notFound, playerToken, hostToken, state, kicked]);
 
   const fetchHand = useCallback(async (token: string) => {
     if (!roomId) return;
@@ -127,6 +129,11 @@ export default function RoomPage() {
       });
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 403 || response.status === 404) {
+          localStorage.removeItem(`apples:playerToken:${roomId}`);
+          setKicked(true);
+          return;
+        }
         setError(data?.error ?? "手札の取得に失敗しました。");
         return;
       }
@@ -240,6 +247,28 @@ export default function RoomPage() {
             {notFoundReason === "deleted"
               ? "ホストがルームを削除しました。"
               : "ルームが期限切れか、IDが間違っている可能性があります。"}
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="mt-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Homeに戻る
+          </button>
+        </main>
+      </div>
+    );
+  }
+
+  if (kicked) {
+    return (
+      <div className="min-h-screen bg-zinc-50 px-6 py-8 text-zinc-900">
+        <main className="mx-auto flex w-full max-w-xl flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-semibold">
+            ルームから退出させられました。
+          </h1>
+          <p className="text-sm text-zinc-600">
+            ホストによってルームから削除されました。
           </p>
           <button
             type="button"
@@ -498,6 +527,34 @@ export default function RoomPage() {
     }
   };
 
+  const handleKick = async (targetPlayerId: string, name: string) => {
+    if (!hostToken) return;
+    const ok = window.confirm(
+      `${name}をルームから退出させてもよいですか？`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/room/kick", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${hostToken}`,
+        },
+        body: JSON.stringify({ roomId, targetPlayerId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data?.error ?? "退出処理に失敗しました。");
+      }
+    } catch {
+      setError("退出処理に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleCopyRoomId = async () => {
     try {
       await navigator.clipboard.writeText(roomId);
@@ -626,9 +683,21 @@ export default function RoomPage() {
                           {status}
                         </span>
                       </div>
+                    <div className="flex items-center gap-2">
                       <span className="text-xs text-zinc-600">
                         {player.score}点
                       </span>
+                      {isHost && player.id !== playerId ? (
+                        <button
+                          type="button"
+                          onClick={() => handleKick(player.id, player.name)}
+                          disabled={busy}
+                          className="rounded-full border border-red-300 px-2 py-0.5 text-xs font-semibold text-red-600 disabled:opacity-50"
+                        >
+                          退出
+                        </button>
+                      ) : null}
+                    </div>
                     </li>
                   );
                 })}
