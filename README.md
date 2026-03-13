@@ -1,31 +1,65 @@
-# Apples to Apples MVP
+# ワードクラッシュ
+- アプリ名: ワードクラッシュ
+- 1行説明: 5桁ルームIDで参加する、オンライン言葉カードゲーム
 
-Minimal multiplayer prompt + noun card game built with Next.js App Router.
+# 概要
+- このアプリが何をするものか: お題（緑カード）に対して手札（赤カード）を提出し、投票で得点を競うオンラインゲーム
+- 遊び方の流れ: ルーム作成/参加 → ホストがお題公開 → 手札から1枚提出 → 投票 → 結果表示とスコア加算 → 次ラウンドへ
+- 完成状況: MVP相当（ルーム作成〜結果表示、スコア管理、次ラウンド進行まで実装済み）
 
-## Setup
+# 主な機能
+- ルーム作成/参加（5桁ID、ホスト/プレイヤートークン発行）
+- プレイヤー設定（名前＋アイコン、ローカル保存）
+- 手札配布と提出（8枚配布、ダブルタップ/ドラッグで提出）
+- 投票（自分のカードには投票不可）
+- 結果表示とスコア加算（得票と投票者表示、同点時のスコア調整あり）
+- 次ラウンド進行（お題更新、手札補充、フェーズ遷移）
+- ルーム状態同期（クライアントが1秒間隔で状態ポーリング）
+- その他: 手札APIはトークン所有者のみ取得可能
 
-Create `.env.local` with Upstash Redis credentials:
+# 技術スタック
+- フロントエンド: Next.js App Router / React / TypeScript / Tailwind CSS
+- バックエンド: Next.js Route Handlers
+- データストア: Upstash Redis
+- デプロイ: 設定は未記載（READMEには記載なし）
 
+# アーキテクチャ・設計
+- Redisの使い方: ルーム・プレイヤー・手札・提出・投票をキー単位で管理し、TTLで自動失効
+- ルーム状態管理: `room` / `players` / `submissions` / `votes` / `hands` を分離して保存
+- フェーズ管理: WAITING → SELECT → VOTING → RESULT の4段階で進行
+- 手札保護: `/api/hand` はプレイヤートークンを必須とし、所有者以外は取得不可
+
+# 工夫した点
+- 5桁IDの正規化をフロント/バックエンドで統一して入力・URL・APIを一貫化
+- 全員提出・全員投票で自動的に次フェーズへ進むサーバー側判定
+- 投票結果の集計と同点時のスコア加算ロジックを実装
+- 手札補充時に既出カードを避ける仕組みをRedisで管理
+- UIはモバイル縦画面を優先したレイアウト構成
+
+# 今後の改善予定
+- ポーリングをWebSocket等のリアルタイム通知へ置き換え（想定）
+- UIのアニメーションやフィードバック強化（想定）
+- ゲーム設定（手札枚数・スコア閾値）などの拡張（想定）
+
+# セットアップ
+- 必要な環境変数（`.env.local`）
 ```
 UPSTASH_REDIS_REST_URL=https://YOUR_ENDPOINT
 UPSTASH_REDIS_REST_TOKEN=YOUR_TOKEN
 ```
 
-Install dependencies and run:
-
+- 依存関係のインストールと起動
 ```
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+- ビルド/起動
+```
+npm run build
+npm run start
+```
 
-## Notes
-
-- Room state is stored in Upstash Redis with 24h TTL.
-- Clients poll `/api/room/state` every second.
-- Hands are only returned to the owner via `/api/hand` with a player token.
-
-## v1.1 TODO
-
-- (Implemented) Voting + results phases added.
+# 補足
+- Redisのデータは24時間TTLで自動削除されます
+- `/api/room/state` をクライアントが1秒間隔でポーリングしています
